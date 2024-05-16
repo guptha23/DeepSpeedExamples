@@ -25,6 +25,8 @@ class RandomQueryGenerator:
         offset = list(range(512))
         random.shuffle(offset)
 
+        # TODO: consider different input text and initialize at different intervals
+        # currently most of the input prompt is similar
         text_ids = tokenized_input["input_ids"][0]
         for i in range(batch):
             # Set max_new_tokens following normal distribution with mean=max_new_tokens and std=0.3*max_new_tokens

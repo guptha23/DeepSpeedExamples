@@ -38,7 +38,9 @@ def parse_args(
     # Server args
     server_parser = argparse.ArgumentParser(add_help=False)
     server_parser.add_argument(
-        "--tp_size", type=int, nargs="+", default=None, help="Tensor parallelism size"
+        # "--tp_size", type=int, nargs="+", default=None, help="Tensor parallelism size"
+        "--tp_size", type=int, nargs="+", default=[1], help="Tensor parallelism size"
+
     )
     server_parser.add_argument(
         "--max_ragged_batch_size",
@@ -85,7 +87,10 @@ def parse_args(
         "--num_clients",
         type=int,
         nargs="+",
-        default=[1, 2, 4, 6, 8, 12, 16, 20, 24, 28, 32],
+        # default=[1, 2, 4, 6, 8, 12, 16, 20, 24, 28, 32],
+        # default=[1, 2, 4, 8, 16, 32],
+        # default=[1, 16],
+        default=[1],
         help="Number of concurrent clients",
     )
     client_parser.add_argument(
@@ -93,6 +98,12 @@ def parse_args(
         type=int,
         default=None,
         help="Number of requests to process by clients",
+    )
+    client_parser.add_argument(
+        "--benchmark_time_in_minutes",
+        type=int,
+        default=60,
+        help="Time in minutes to get the benchmark numbers applicable for AML endpoints",
     )
     client_parser.add_argument(
         "--prompt_length_var", type=float, default=0.3, help="Variance of prompt length"
@@ -108,6 +119,14 @@ def parse_args(
     )
     client_parser.add_argument(
         "--use_thread", action="store_true", help="Use threads instead of processes"
+    )
+    # store_true => default value is False if unspecified
+    # If specified in command line arguments => True is considered
+    client_parser.add_argument(
+        "--use_chat_data", action="store_true", help="Use chat completion data for AML endpoints"
+    )
+    client_parser.add_argument(
+        "--use_time_to_benchmark", action="store_true", help="Use time in minutes to perform benchmarking"
     )
     client_parser.add_argument(
         "--stream", action="store_true", help="Stream generated tokens"
@@ -142,6 +161,14 @@ def parse_args(
     parser = argparse.ArgumentParser(parents=parents)
     parser.add_argument(
         "--model", type=str, default=None, help="HuggingFace.co model name"
+    )
+    parser.add_argument(
+        "--hf_access_token", type=str, default=None,
+        help="HuggingFace.co token to access gated models"
+    )
+    parser.add_argument(
+        "--tokenizer_dir_path", type=str, default=None,
+        help="Path to the tokenizer directory for the model (loads with AutoTokenizer.from_pretrained)"
     )
     parser.add_argument(
         "--deployment_name",

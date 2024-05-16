@@ -13,6 +13,7 @@ import random
 import requests
 import threading
 import time
+from pathlib import Path
 from typing import List, Iterable, Union
 
 import numpy as np
@@ -145,10 +146,17 @@ def call_aml(
         "Authorization": ("Bearer " + args.aml_api_key),
         "azureml-model-deployment": args.deployment_name,
     }
+    if args.use_chat_data is True:
+        formatted_input = {"role": "user",
+                           "content": input_tokens}
+    else:
+        formatted_input = input_tokens
+
+    # TODO: consider the case when MaaS endpoints can handle more than 1 datpoint in single POST API reqeust
     pload = {
         "input_data": {
             "input_string": [
-                input_tokens,
+                formatted_input,
             ],
             "parameters": {
                 "max_tokens": max_new_tokens,
@@ -160,12 +168,16 @@ def call_aml(
     def get_response(response: requests.Response) -> List[str]:
         data = json.loads(response.content)
         try:
-            output = data[0]["0"]
+            if args.use_chat_data is True:
+                output = data["output"]
+            else:
+                output = data[0]["0"]
         except (KeyError, TypeError):
             try:
                 output = data[0]
             except (KeyError, TypeError):
                 output = data
+
         return output
 
     token_gen_time = []
@@ -219,13 +231,30 @@ def _run_parallel(
 
     time.sleep(random.uniform(0, args.num_clients) * 0.01)
     try:
-        while True:
-            print(f"queue size: {query_queue.qsize()} ({pid})", flush=True)
-            input_tokens, req_max_new_tokens = query_queue.get(timeout=1.0)
+        if args.use_time_to_benchmark is True:
+            # runs for certain minutes
+            benchmark_time_in_secs = args.benchmark_time_in_minutes * 60
+            benchmark_start_time = time.time()
 
-            r = call_fn(input_tokens, req_max_new_tokens, args)
+            print(f"Running benchmark for either of {args.benchmark_time_in_minutes} minutes"
+                  f" or until queue is empty ({pid})")
 
-            result_queue.put(r)
+            while ((time.time() - benchmark_start_time < benchmark_time_in_secs)
+                   and query_queue.qsize() > 0):
+                print(f"queue size: {query_queue.qsize()} ({pid})", flush=True)
+                input_tokens, req_max_new_tokens = query_queue.get(timeout=1.0)
+
+                r = call_fn(input_tokens, req_max_new_tokens, args)
+
+                result_queue.put(r)
+        else:
+            while not query_queue.empty():
+                print(f"queue size: {query_queue.qsize()} ({pid})", flush=True)
+                input_tokens, req_max_new_tokens = query_queue.get(timeout=1.0)
+
+                r = call_fn(input_tokens, req_max_new_tokens, args)
+
+                result_queue.put(r)
     except queue.Empty:
         print(f"queue is empty ({pid})")
 
@@ -272,7 +301,8 @@ def run_client(args):
     for p in processes:
         p.start()
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    tokenizer = load_tokenizer(args)
+
     query_generator = RandomQueryGenerator(all_text, tokenizer, seed=42)
     request_text = query_generator.get_random_request_text(
         args.mean_prompt_length,
@@ -308,6 +338,17 @@ def run_client(args):
         response_details.append(res)
 
     return response_details
+
+
+def load_tokenizer(args):
+    if args.tokenizer_dir_path is not None:
+        tokenizer = AutoTokenizer.from_pretrained(Path(args.tokenizer_dir_path))
+    else:
+        if args.hf_access_token is not None:
+            tokenizer = AutoTokenizer.from_pretrained(args.model, token=args.hf_access_token)
+        else:
+            tokenizer = AutoTokenizer.from_pretrained(args.model)
+    return tokenizer
 
 
 if __name__ == "__main__":

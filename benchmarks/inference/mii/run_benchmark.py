@@ -22,11 +22,13 @@ def run_benchmark() -> None:
     for server_args in get_args_product(args, which=SERVER_PARAMS):
         if server_args.backend != "aml":
             start_server(server_args)
+        print("Length of run type combinations", len(list(get_args_product(server_args, which=CLIENT_PARAMS))))
 
         for client_args in get_args_product(server_args, which=CLIENT_PARAMS):
             if results_exist(client_args) and not args.overwrite_results:
                 print(
-                    f"Found existing results and skipping current setting. To ignore existing results, use --overwrite_results"
+                    f"Found existing results and skipping current setting. To ignore existing results, "
+                    f"use --overwrite_results"
                 )
                 continue
 
