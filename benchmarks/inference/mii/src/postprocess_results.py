@@ -16,6 +16,7 @@ from typing import List
 from collections import defaultdict
 
 import numpy as np
+import tiktoken
 from transformers import AutoTokenizer
 
 
@@ -57,6 +58,20 @@ def get_tokenizer():
     return tokenizer
 
 
+def load_tokenizer(args):
+    if args["use_openai_payload"] is True:
+        tokenizer = tiktoken.encoding_for_model(args["model"])
+    else:
+        if args["tokenizer_dir_path"] is not None:
+            tokenizer = AutoTokenizer.from_pretrained(Path(args["tokenizer_dir_path"]))
+        else:
+            if args["hf_access_token"] is not None:
+                tokenizer = AutoTokenizer.from_pretrained(args["model"], token=args["hf_access_token"])
+            else:
+                tokenizer = AutoTokenizer.from_pretrained(args["model"])
+    return tokenizer
+
+
 def read_json(file_path):
     with open(file_path, "r") as f:
         data = json.load(f)
@@ -77,10 +92,11 @@ def get_summary(args, response_details):
     latency = mean([r.end_time - r.start_time for r in response_details])
     throughput = num_clients / latency
 
+    tokenizer = load_tokenizer(args)
     if args["use_openai_payload"] is True:
         tokens_per_sec = mean(
             [
-                len(get_tokenizer().encode(r.prompt)) + len(get_tokenizer().tokenize(r.generated_tokens))
+                len(tokenizer.encode(r.prompt)) + len(tokenizer.tokenize(r.generated_tokens))
                 / (r.end_time - r.start_time)
                 for r in response_details
             ]
@@ -88,8 +104,8 @@ def get_summary(args, response_details):
     else:
         tokens_per_sec = mean(
             [
-                (len(get_tokenizer().tokenize(r.prompt)) +
-                len(get_tokenizer().tokenize(r.generated_tokens)) if type(r.generated_tokens) == str
+                (len(tokenizer.tokenize(r.prompt)) +
+                 len(tokenizer.tokenize(r.generated_tokens)) if type(r.generated_tokens) == str
                 else len(r.generated_tokens))
                 / (r.end_time - r.start_time)
                 for r in response_details
