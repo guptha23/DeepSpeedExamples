@@ -30,6 +30,7 @@ class ResponseDetails:
     end_time: float
     model_time: float
     token_gen_time: List[float]
+    response_data: json = None
 
 
 @dataclass
@@ -76,15 +77,24 @@ def get_summary(args, response_details):
     latency = mean([r.end_time - r.start_time for r in response_details])
     throughput = num_clients / latency
 
-    tokens_per_sec = mean(
-        [
-            (len(get_tokenizer().tokenize(r.prompt)) +
-            len(get_tokenizer().tokenize(r.generated_tokens)) if type(r.generated_tokens) == str
-            else len(r.generated_tokens))
-            / (r.end_time - r.start_time)
-            for r in response_details
-        ]
-    )
+    if args["use_openai_payload"] is True:
+        tokens_per_sec = mean(
+            [
+                len(get_tokenizer().encode(r.prompt)) + len(get_tokenizer().tokenize(r.generated_tokens))
+                / (r.end_time - r.start_time)
+                for r in response_details
+            ]
+        )
+    else:
+        tokens_per_sec = mean(
+            [
+                (len(get_tokenizer().tokenize(r.prompt)) +
+                len(get_tokenizer().tokenize(r.generated_tokens)) if type(r.generated_tokens) == str
+                else len(r.generated_tokens))
+                / (r.end_time - r.start_time)
+                for r in response_details
+            ]
+        )
 
     # For non-streaming results, we don't have any token_gen_time information
     first_token_latency = 0.0

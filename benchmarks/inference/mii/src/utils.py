@@ -133,6 +133,12 @@ def parse_args(
         "--use_time_to_benchmark", action="store_true", help="Use time in minutes to perform benchmarking"
     )
     client_parser.add_argument(
+        "--use_openai_payload", action="store_true", help="Used to send payload in OpenAI format"
+    )
+    client_parser.add_argument(
+        "--use_maas_payload", action="store_true", help="Used to send payload in OpenAI format"
+    )
+    client_parser.add_argument(
         "--stream", action="store_true", help="Stream generated tokens"
     )
     client_parser.add_argument(

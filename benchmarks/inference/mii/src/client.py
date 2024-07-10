@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import List, Iterable, Union
 
 import numpy as np
+import tiktoken
 from transformers import AutoTokenizer
 
 try:
@@ -141,44 +142,62 @@ def call_aml(
     if args.stream:
         raise NotImplementedError("Not implemented for streaming")
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": ("Bearer " + args.aml_api_key),
-        "azureml-model-deployment": args.deployment_name,
-    }
+    if args.use_openai_payload is True:
+        headers = {
+            "Content-Type": "application/json",
+            "api-key": args.aml_api_key,
+        }
+    else:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": ("Bearer " + args.aml_api_key),
+            "azureml-model-deployment": args.deployment_name,
+        }
+
     if args.use_chat_data is True:
         formatted_input = {"role": "user",
                            "content": input_tokens}
     else:
         formatted_input = input_tokens
 
-    # TODO: consider the case when MaaS endpoints can handle more than 1 datpoint in single POST API reqeust
-    pload = {
-        "input_data": {
-            "input_string": [
-                formatted_input,
+    if args.use_openai_payload is True or args.use_maas_payload is True:
+        pload = {
+            "messages": [
+                formatted_input
             ],
-            "parameters": {
-                "max_tokens": max_new_tokens,
-                "return_full_text": False,
-            },
+            "max_tokens": max_new_tokens,
         }
-    }
+    else:
+        # TODO: consider the case when MaaS endpoints can handle more than 1 datapoint in single POST API reqeust
+        pload = {
+            "input_data": {
+                "input_string": [
+                    formatted_input,
+                ],
+                "parameters": {
+                    "max_tokens": max_new_tokens,
+                    "return_full_text": False,
+                },
+            }
+        }
 
-    def get_response(response: requests.Response) -> List[str]:
+    def get_response(response: requests.Response) -> tuple[List[str], json]:
         data = json.loads(response.content)
         try:
-            if args.use_chat_data is True:
-                output = data["output"]
+            if args.use_openai_payload is True or args.use_maas_payload is True:
+                output = data["choices"][0]["message"]["content"]
             else:
-                output = data[0]["0"]
+                if args.use_chat_data is True:
+                    output = data["output"]
+                else:
+                    output = data[0]["0"]
         except (KeyError, TypeError):
             try:
                 output = data[0]
             except (KeyError, TypeError):
                 output = data
 
-        return output
+        return output, data
 
     token_gen_time = []
     response = None
@@ -187,7 +206,7 @@ def call_aml(
     while True:
         try: # Sometimes the AML endpoint will return an error, so we send the request again
             response = requests.post(args.aml_api_url, headers=headers, json=pload, timeout=180)
-            output = get_response(response)
+            output, data = get_response(response)
             break
         except Exception as e:
             print(f"Connection failed with {e}. Retrying AML request")
@@ -202,6 +221,7 @@ def call_aml(
         end_time=time.time(),
         model_time=0,
         token_gen_time=token_gen_time,
+        response_data=data,
     )
 
 
@@ -341,13 +361,16 @@ def run_client(args):
 
 
 def load_tokenizer(args):
-    if args.tokenizer_dir_path is not None:
-        tokenizer = AutoTokenizer.from_pretrained(Path(args.tokenizer_dir_path))
+    if args.use_openai_payload is True:
+        tokenizer = tiktoken.encoding_for_model(args.model)
     else:
-        if args.hf_access_token is not None:
-            tokenizer = AutoTokenizer.from_pretrained(args.model, token=args.hf_access_token)
+        if args.tokenizer_dir_path is not None:
+            tokenizer = AutoTokenizer.from_pretrained(Path(args.tokenizer_dir_path))
         else:
-            tokenizer = AutoTokenizer.from_pretrained(args.model)
+            if args.hf_access_token is not None:
+                tokenizer = AutoTokenizer.from_pretrained(args.model, token=args.hf_access_token)
+            else:
+                tokenizer = AutoTokenizer.from_pretrained(args.model)
     return tokenizer
 
 
