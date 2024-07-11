@@ -181,7 +181,13 @@ def call_aml(
             }
         }
 
-    def get_response(response: requests.Response) -> tuple[List[str], json]:
+    if args.use_maas_payload is True and args.use_chat_data is False:
+        pload = {
+            "prompt": formatted_input,
+            "max_tokens": max_new_tokens,
+        }
+
+    def get_response(response: requests.Response):
         data = json.loads(response.content)
         try:
             if args.use_openai_payload is True or args.use_maas_payload is True:
@@ -210,6 +216,10 @@ def call_aml(
             break
         except Exception as e:
             print(f"Connection failed with {e}. Retrying AML request")
+            # print stack trace
+            import traceback
+            print(traceback.print_exc())
+
             # make sure response exist before we call it
             if response:
                 print(f"{response.status_code}:{response.content}")

@@ -96,7 +96,7 @@ def get_summary(args, response_details):
     if args["use_openai_payload"] is True:
         tokens_per_sec = mean(
             [
-                len(tokenizer.encode(r.prompt)) + len(tokenizer.tokenize(r.generated_tokens))
+                len(tokenizer.encode(r.prompt)) + len(tokenizer.encode(r.generated_tokens))
                 / (r.end_time - r.start_time)
                 for r in response_details
             ]
