@@ -323,7 +323,7 @@ def run_client(args):
 
     tokenizer = load_tokenizer(args)
 
-    query_generator = RandomQueryGenerator(all_text, tokenizer, seed=42)
+    query_generator = RandomQueryGenerator(all_text, tokenizer, seed=42, use_openai_payload=args.use_openai_payload)
     request_text = query_generator.get_random_request_text(
         args.mean_prompt_length,
         args.mean_prompt_length * args.prompt_length_var,

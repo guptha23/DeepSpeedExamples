@@ -20,7 +20,7 @@ class RandomQueryGenerator:
 
     def get_random_request_text(self, length, variance, max_length, batch):
         request_text = []
-        if self.use_openai_payload:
+        if self.use_openai_payload is True:
             tokenized_input = self.tokenizer.encode(self.input_text)
             text_ids = tokenized_input
         else:
